@@ -33,14 +33,30 @@ class toprank_unit():
             self.rankBowl.append(element)
         else:
             self.rankBowl.sort(key=lambda x:x[1])
+            #self.print_toprank_unit()
             if (self.rankBowl[0][1] < increase_rate):
+                #print("\n************* Unit:", self.whichUnit, "Pop:", self.rankBowl[0][1], "Append:", element[1])
                 self.rankBowl.pop(0)
                 self.rankBowl.append(element)
+
+    def find_and_pop_unit(self, stockId):
+        weightIncrease = 0.0
+        for i in self.rankBowl:
+            if stockId == i[0]:
+                weightIncrease += i[1]/(self.whichUnit+1)
+                self.rankBowl.pop(self.rankBowl.index(i))
+                break
+        return weightIncrease
+
+    def is_bowl_empty(self):
+        return 0 == len(self.rankBowl)
+
+    def get_first_stockId(self):
+        return self.rankBowl[0][0]
 
     def print_toprank_unit(self):
         for i in self.rankBowl:
             print("Day:", self.whichUnit, "unit:", i)
-            print("Tuples: ", i[0], "-", i[1])
 
 class toprank_strategy(strategy.base_strategy):
     def __init__(self):
@@ -50,8 +66,9 @@ class toprank_strategy(strategy.base_strategy):
         self.rankUnits = 0
         self.rankStocks = 0
         self.breakHighDays = 0
-        self.breakHighList = []
+        self.breakHighThrone = []
         self.units = {}
+        self.rankCrown = []
 
     def load_parameters(self):
         with open('toprank.json', 'r') as f:
@@ -93,27 +110,47 @@ datetime.date.today().day)
 
     def toprank_loop_stocks(self):
         info = ts.get_stock_basics()
-        i = 32
+        #i = 50
         for eachStockId in info.index:
-            i = i-1
-            if i < 0:
-                break
+            #i = i-1
+            #if (i < 0): break
             if self.is_break_high(eachStockId, self.breakHighDays):
                 #print("Break_high: ", eachStockId, info.ix[eachStockId])
-                self.breakHighList.append(eachStockId)
+                self.breakHighThrone.append(eachStockId)
             self.add_toprank_increase(eachStockId)
 
     def load_recent_stock_info(self):
-        print("version of tushare: %s"% ts.__version__)
         self.load_parameters()
-        #cd = ts.get_today_all()
-        #rd = ts.get_hist_data('000063')
-	    #rd.to_csv('./data/hist_all.csv')
-        #rd.to_json('./data/hist_all.json', orient='records')
         self.toprank_loop_stocks()
-        print("breakHighList: ", self.breakHighList)
+        print("\n############# LenofHighThrone:", len(self.breakHighThrone), "breakHighThrone:", self.breakHighThrone)
+        #for i in range(0, self.rankUnits):
+        #    self.units[i].print_toprank_unit()
+
+    def find_and_pop_toprank_unit(self, stockId):
+        weightIncrease = 0.0
         for i in range(0, self.rankUnits):
-            self.units[i].print_toprank_unit()
+            weightIncrease += self.units[i].find_and_pop_unit(stockId)
+        return weightIncrease
+
+    def merge_toprank_crown(self):
+        for i in range(0, self.rankUnits):
+            while(not self.units[i].is_bowl_empty()):
+                stockId = self.units[i].get_first_stockId()
+                weightIncrease = self.find_and_pop_toprank_unit(stockId)
+                perl = (stockId, weightIncrease)
+                self.rankCrown.append(perl)
+
+    def eliminate_without_break_high(self):
+        for i in self.rankCrown:
+            if i[0] not in self.breakHighThrone:
+                self.rankCrown.pop(self.rankCrown.index(i))
+
+    def select_toprank_stocks(self):
+        self.load_recent_stock_info()
+        self.merge_toprank_crown()
+        self.eliminate_without_break_high()
+        self.rankCrown.sort(key=lambda x:-x[1])
+        print("$$$$$$$$$$$ rankCrown:", self.rankCrown)
 
 if __name__ == "__main__":
     opts, args = getopt.getopt(sys.argv[1:], "hp:")
@@ -125,6 +162,7 @@ if __name__ == "__main__":
             sys.exit()
         elif op == "-h":
             print("Usage: python topranks.py -p YOUR_FULL_PATH_NAME")
-            tr.load_recent_stock_info()
+            print("version of tushare: %s"% ts.__version__)
+            tr.select_toprank_stocks()
             sys.exit()
 
