@@ -13,33 +13,34 @@ class toprank_unit():
         self.unitDays = days
         self.whichUnit = whichDay
         self.rankStocks = rankStocks
-        self.rankPool = []
+        self.rankBowl = []
 
     def get_increase(self, x):
-        #print("get_increase: \n", x['close'], "return; ", x.iloc[-1]['close'])
-        return (int)(10000*(x.iloc[-1]['close']-x.iloc[-1]['open'])/x.iloc[-1]['open'])
+        i = self.whichUnit
+        increase =  100*(x.iloc[i]['close']-x.iloc[i]['open'])/x.iloc[i]['open']
+        return increase
         
-    def rank_reverse_cmp(self, x, y):
-        x_increase = self.get_increase(x)
-        y_increase = self.get_increase(y)
-        return y_increase - x_increase
-        
-    def add_toprank_increase_unit(self, df):
+    def add_toprank_increase_unit(self, stockId, df):
+        if df is None:
+            return
+        if (len(df) < self.whichUnit+1):
+            return
         increase_rate = self.get_increase(df)
         if (increase_rate <= 0):
             return
-        if (len(self.rankPool) < self.rankStocks):
-            self.rankPool.append(df)
+        element = (stockId, increase_rate)
+        if (len(self.rankBowl) < self.rankStocks):
+            self.rankBowl.append(element)
         else:
-            self.rankPool = sorted(self.rankPool, self.rank_reverse_cmp)
-            if (self.rank_reverse_cmp(self.rankPool[-1], df) > 0):
-                self.rankPool.pop()
-                self.rankPool.append(df)
+            self.rankBowl.sort(key=lambda x:x[1])
+            if (self.rankBowl[0][1] < increase_rate):
+                self.rankBowl.pop(0)
+                self.rankBowl.append(element)
 
-    def print_toprank_unit():
-        for i in self.rankPool:
+    def print_toprank_unit(self):
+        for i in self.rankBowl:
             print("Day:", self.whichUnit, "unit:", i)
-            print(self.rankPool[i])
+            print("Tuples: ", i[0], "-", i[1])
 
 class toprank_strategy(strategy.base_strategy):
     def __init__(self):
@@ -55,7 +56,6 @@ class toprank_strategy(strategy.base_strategy):
     def load_parameters(self):
         with open('toprank.json', 'r') as f:
             data = json.load(f)
-        #print(data["rankStocks"])
         self.unitDays = data["unitDays"]
         self.rankUnits = data["rankUnits"]
         self.rankStocks = data["rankStocks"]
@@ -83,21 +83,25 @@ datetime.date.today().day)
         else:
             return False
 
-    def add_toprank_increase(self, stockId, unitDays, rankUnit):
-        (start_day, end_day) = self.pick_date_from_days(unitDays*(rankUnit+1))
+    def add_toprank_increase(self, stockId):
+        (start_day, end_day) = self.pick_date_from_days(self.unitDays*self.rankUnits)
         #print("increase: stockId", stockId, "start_day", start_day, "end_day", end_day)
         df = ts.get_h_data(stockId, start=start_day, end=end_day)
-        self.units[rankUnit].add_toprank_increase_unit(df)
+        #print("Dataframe: \n", df)
+        for i in range(0, self.rankUnits):
+       	    self.units[i].add_toprank_increase_unit(stockId, df)
 
     def toprank_loop_stocks(self):
         info = ts.get_stock_basics()
-        print("High price on")
+        i = 32
         for eachStockId in info.index:
+            i = i-1
+            if i < 0:
+                break
             if self.is_break_high(eachStockId, self.breakHighDays):
-                #print(eachStockId, info.ix[eachStockId])
+                #print("Break_high: ", eachStockId, info.ix[eachStockId])
                 self.breakHighList.append(eachStockId)
-            for i in range(0, self.rankUnits):
-                self.add_toprank_increase(eachStockId, self.unitDays, i)
+            self.add_toprank_increase(eachStockId)
 
     def load_recent_stock_info(self):
         print("version of tushare: %s"% ts.__version__)
@@ -107,6 +111,9 @@ datetime.date.today().day)
 	    #rd.to_csv('./data/hist_all.csv')
         #rd.to_json('./data/hist_all.json', orient='records')
         self.toprank_loop_stocks()
+        print("breakHighList: ", self.breakHighList)
+        for i in range(0, self.rankUnits):
+            self.units[i].print_toprank_unit()
 
 if __name__ == "__main__":
     opts, args = getopt.getopt(sys.argv[1:], "hp:")
