@@ -1,5 +1,7 @@
-# toprank
-toprank strategy for stock trading
+# silverstrategy
+strategies for stock trading
 
-Usage:
-#python3 toprank.py
+<pre><code>
+Usage: (toprank strategy for example)
+# python3 toprank.py -h
+</code></pre>
