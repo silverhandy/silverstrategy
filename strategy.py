@@ -5,6 +5,7 @@ from enum import Enum
 import tushare as ts
 
 class industryType(Enum):
+    null = 0
     semiconductor = 1
     communication = 2
     software = 3
@@ -13,6 +14,7 @@ class industryType(Enum):
     realty = 6
     medicine = 7
     construction = 8
+    bank = 9
 
 class fundaType(Enum):
     performance = 1
@@ -44,17 +46,21 @@ class base_strategy():
         self.fundaLib[fundaType.debtpaying] = funda_cell(ts.get_debtpaying_data, "debtpaying_report")
         self.fundaLib[fundaType.cashflow] = funda_cell(ts.get_cashflow_data, "cashflow_report")
 
-    def get_stock_basics(self):
+    def get_stock_basics(self, saveFile):
         info = ts.get_stock_basics()
-        info.to_csv("./output/stock_basics.csv")
+        if saveFile:
+            info.to_csv("./output/stock_basics.csv")
         return info
 
-    def get_fundamental_info(self, type, year, quarter):
+    def get_fundamental_info(self, type, year, quarter, saveFile):
         info = self.fundaLib[type].get_callback()(year, quarter)
-        info.to_csv("./output/" + self.fundaLib[type].get_savefile() + "_%s_%s"%(str(year), str(quarter)) + ".csv")
+        if saveFile:
+            info.to_csv("./output/" + self.fundaLib[type].get_savefile() + "_%s_%s"%(str(year), str(quarter)) + ".csv")
         return info
 
     def get_industry_from_GBK(self, gbk):
-        if gbk == '半导体': return semiconductor
-        elif gbk == '通信设备': return communication
-        else: return software
+        if gbk == '半导体': return industryType.semiconductor
+        elif gbk == '通信设备': return industryType.communication
+        elif gbk == '软件服务': return industryType.software
+        elif gbk == '银行': return industryType.bank
+        else: return industryType.null

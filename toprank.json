@@ -2,5 +2,6 @@
     "unitDays": 		1,
     "rankUnits":		5,
     "rankStocks": 		16,
-    "breakHighDays":	60
+    "breakHighDays":	30,
+    "pe":               50
 }
