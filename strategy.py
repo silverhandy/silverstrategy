@@ -4,6 +4,16 @@ import sys, os, string
 from enum import Enum
 import tushare as ts
 
+class industryType(Enum):
+    semiconductor = 1
+    communication = 2
+    software = 3
+    food = 4
+    electric = 5
+    realty = 6
+    medicine = 7
+    construction = 8
+
 class fundaType(Enum):
     performance = 1
     profit = 2
@@ -44,3 +54,7 @@ class base_strategy():
         info.to_csv("./output/" + self.fundaLib[type].get_savefile() + "_%s_%s"%(str(year), str(quarter)) + ".csv")
         return info
 
+    def get_industry_from_GBK(self, gbk):
+        if gbk == '半导体': return semiconductor
+        elif gbk == '通信设备': return communication
+        else: return software

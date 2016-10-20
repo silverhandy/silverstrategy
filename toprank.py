@@ -81,6 +81,8 @@ class toprank_strategy(strategy.base_strategy):
         self.breakHighThrone = []
         self.units = {}
         self.rankCrown = []
+        self.industryRef = []
+        self.stockRef = []
 
     def load_parameters(self):
         with open('toprank.json', 'r') as f:
@@ -100,6 +102,17 @@ datetime.date.today().day)
         start_day = start_day.strftime("%Y-%m-%d")
         end_day = end_day.strftime("%Y-%m-%d")
         return (start_day, end_day)
+
+    def add_industry_ref(self, industryType):
+        if industryType not in self.industryRef:
+            self.industryRef.append(industryType)
+
+    def load_stock_ref_pool(self):
+        info = super().get_stock_basics()
+        for (stockId, industryType) in (info.index, info.industry):
+            if super().get_industry_from_GBK(industryType) in self.industryRef:
+                self.stockRef.append(stockId)
+                print("\n<----- add stockId", stockId)
 
     def is_break_high(self, stockId, days):
         (start_day, end_day) = self.pick_date_from_days(days)
@@ -123,11 +136,9 @@ datetime.date.today().day)
        	    self.units[i].add_toprank_increase_unit(stockId, df)
 
     def toprank_loop_stocks(self):
-        info = super().get_stock_basics()
-        i = 50
-        for eachStockId in info.index:
-            i = i-1
-            if (i < 0): break
+        self.load_stock_ref_pool()
+        #info = super().get_stock_basics()
+        for eachStockId in self.stockRef:#info.index:
             if self.is_break_high(eachStockId, self.breakHighDays):
                 #print("Break_high: ", eachStockId, info.ix[eachStockId])
                 self.breakHighThrone.append(eachStockId)
@@ -160,6 +171,8 @@ datetime.date.today().day)
                 self.rankCrown.pop(self.rankCrown.index(i))
 
     def select_toprank_stocks(self):
+        self.add_industry_ref(strategy.industryType.semiconductor)
+        self.add_industry_ref(strategy.industryType.communication)
         self.load_recent_stock_info()
         self.merge_toprank_crown()
         self.eliminate_without_break_high()
