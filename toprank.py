@@ -10,27 +10,29 @@ import pandas as pd
 import strategy
 
 class toprank_cell():
-    def __init__(self, stockId, increaseRate):
+    def __init__(self, stockId):
         self._stockId = stockId
-        self._increaseRate = increaseRate
+        self._IR = {}
+        self._weightIR = 0
 
     def get_stockId(self):
         return self._stockId
 
-    def get_increase_rate(self):
-        return self._increaseRate
+    def get_IR(self, day):
+        return self._IR[day]
+
+    def set_IR(self, day, IR):
+        self._IR[day] = IR
+
+    def get_weight_IR(self):
+        for i in self._IR.keys():
+            self._weightIR += self._IR[i]/(i+1)
+        return self._weightIR
 
     def print_cell(self):
-        print("Stock:", self._stockId, "IR:", self._increaseRate)
-        
+        print("Stock:", self._stockId, "weightIR:", self._weightIR, "\nIR:", self._IR)
 
-class toprank_unit():
-    def __init__(self, days, whichDay, rankStocks):
-        self.unitDays = days
-        self.whichUnit = whichDay
-        self.rankStocks = rankStocks
-        self.rankBowl = []
-
+#########
     def get_increase(self, x):
         i = self.whichUnit
         increase =  100*(x.iloc[i]['close']-x.iloc[i]['open'])/x.iloc[i]['open']
@@ -67,16 +69,7 @@ class toprank_unit():
             self.rankBowl = filter(lambda x:x.get_stockId() != stockId, self.rankBowl)
             self.rankBowl = list(self.rankBowl)
         return weightIncrease
-
-    def is_bowl_empty(self):
-        return 0 == len(self.rankBowl)
-
-    def get_first_stockId(self):
-        return self.rankBowl[0].get_stockId()
-
-    def print_toprank_unit(self):
-        for i in self.rankBowl:
-            print("Day:", self.whichUnit, "unit:", i.get_stockId(), i.get_increase_rate())
+##################
 
 class toprank_strategy(strategy.base_strategy):
     def __init__(self):
@@ -88,7 +81,7 @@ class toprank_strategy(strategy.base_strategy):
         self.breakHighDays = 0
         self.pe = 0
         self.breakHighThrone = []
-        self.units = {}
+        #self.units = {}
         self.rankCrown = []
         self.industryRef = []
         self.stockRef = []
@@ -101,8 +94,6 @@ class toprank_strategy(strategy.base_strategy):
         self.rankStocks = data["rankStocks"]
         self.breakHighDays = data["breakHighDays"]
         self.pe = data["pe"]
-        for i in range(0, self.rankUnits):
-            self.units[i] = toprank_unit(self.unitDays, i, self.rankStocks)
 
     def pick_date_from_days(self, days):
         end_day = datetime.date(datetime.date.today().year, datetime.date.today().month, \
@@ -139,6 +130,26 @@ datetime.date.today().day)
         else:
             return False
 
+                self.rankBowl.sort(key=lambda x:-x.get_increase_rate())
+
+    def find_and_pop_unit(self, stockId):
+        weightIncrease = 0.0
+        for i in self.rankBowl:
+            if stockId == i.get_stockId():
+                weightIncrease += i.get_increase_rate()/(self.whichUnit+1)
+                break
+        for i in self.rankBowl:
+            self.rankBowl = filter(lambda x:x.get_stockId() != stockId, self.rankBowl)
+            self.rankBowl = list(self.rankBowl)
+        return weightIncrease
+##################
+
+class toprank_strategy(strategy.base_strategy):
+    def __init__(self):
+        strategy.base_strategy.__init__(self)
+        self.name = "toprank"
+        self.unitDays = 0
+        self.rankUnits = 0
     def add_toprank_increase(self, stockId):
         (start_day, end_day) = self.pick_date_from_days(self.unitDays*self.rankUnits)
         #print("increase: stockId", stockId, "start_day", start_day, "end_day", end_day)
