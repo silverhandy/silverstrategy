@@ -1,7 +1,6 @@
 {
-    "unitDays": 		1,
-    "rankUnits":		5,
-    "rankStocks": 		16,
+    "rankDays": 		5,
     "breakHighDays":	30,
-    "pe":               50
+    "pe":               200,
+    "d2i":              2
 }

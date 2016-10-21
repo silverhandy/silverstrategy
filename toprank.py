@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # top rank stocks selection
 __author__='Chen, Tingjie'
 __mailbox__='silverhandy@hotmail.com'
@@ -9,11 +10,12 @@ import tushare as ts
 import pandas as pd
 import strategy
 
-class toprank_cell():
-    def __init__(self, stockId):
+class toprank_perl():
+    def __init__(self, stockId, d2i):
         self._stockId = stockId
         self._IR = {}
         self._weightIR = 0
+        self._d2i = d2i
 
     def get_stockId(self):
         return self._stockId
@@ -24,64 +26,29 @@ class toprank_cell():
     def set_IR(self, day, IR):
         self._IR[day] = IR
 
-    def get_weight_IR(self):
+    def calc_weight_IR(self):
         for i in self._IR.keys():
-            self._weightIR += self._IR[i]/(i+1)
+            weight = self._IR[i]/(i+1)
+            if weight < 0:
+                weight = self._d2i*weight
+            self._weightIR += weight
         return self._weightIR
 
-    def print_cell(self):
+    def get_weight_IR(self):
+        return self._weightIR
+
+    def print_perl(self):
         print("Stock:", self._stockId, "weightIR:", self._weightIR, "\nIR:", self._IR)
-
-#########
-    def get_increase(self, x):
-        i = self.whichUnit
-        increase =  100*(x.iloc[i]['close']-x.iloc[i]['open'])/x.iloc[i]['open']
-        return increase
-        
-    def add_toprank_increase_unit(self, stockId, df):
-        if df is None:
-            return
-        if (len(df) < self.whichUnit+1):
-            return
-        increase_rate = self.get_increase(df)
-        if (increase_rate <= 0):
-            return
-        cell = toprank_cell(stockId, increase_rate)
-        if (len(self.rankBowl) < self.rankStocks):
-            self.rankBowl.append(cell)
-            self.rankBowl.sort(key=lambda x:-x.get_increase_rate())
-        else:
-            self.rankBowl.sort(key=lambda x:-x.get_increase_rate())
-            #self.print_toprank_unit()
-            if (self.rankBowl[-1].get_increase_rate() < increase_rate):
-                #print("************* Unit:", self.whichUnit, "Pop:", self.rankBowl[0].get_stockId(), "Append:", cell.get_stockId())
-                self.rankBowl.pop()
-                self.rankBowl.append(cell)
-                self.rankBowl.sort(key=lambda x:-x.get_increase_rate())
-
-    def find_and_pop_unit(self, stockId):
-        weightIncrease = 0.0
-        for i in self.rankBowl:
-            if stockId == i.get_stockId():
-                weightIncrease += i.get_increase_rate()/(self.whichUnit+1)
-                break
-        for i in self.rankBowl:
-            self.rankBowl = filter(lambda x:x.get_stockId() != stockId, self.rankBowl)
-            self.rankBowl = list(self.rankBowl)
-        return weightIncrease
-##################
 
 class toprank_strategy(strategy.base_strategy):
     def __init__(self):
         strategy.base_strategy.__init__(self)
         self.name = "toprank"
-        self.unitDays = 0
-        self.rankUnits = 0
-        self.rankStocks = 0
+        self.rankDays = 0
         self.breakHighDays = 0
         self.pe = 0
+        self.d2i = 1
         self.breakHighThrone = []
-        #self.units = {}
         self.rankCrown = []
         self.industryRef = []
         self.stockRef = []
@@ -89,11 +56,10 @@ class toprank_strategy(strategy.base_strategy):
     def load_parameters(self):
         with open('toprank.json', 'r') as f:
             data = json.load(f)
-        self.unitDays = data["unitDays"]
-        self.rankUnits = data["rankUnits"]
-        self.rankStocks = data["rankStocks"]
+        self.rankDays = data["rankDays"]
         self.breakHighDays = data["breakHighDays"]
         self.pe = data["pe"]
+        self.d2i = data["d2i"]
 
     def pick_date_from_days(self, days):
         end_day = datetime.date(datetime.date.today().year, datetime.date.today().month, \
@@ -115,7 +81,7 @@ datetime.date.today().day)
                 if self.pe != 0 and row.pe > self.pe:
                     continue
                 self.stockRef.append(index)
-        print("stock_ref_pool:", self.stockRef)
+        print("stock_ref_pool: Len", len(self.stockRef), "Stocks:", self.stockRef)
 
     def is_break_high(self, stockId, days):
         (start_day, end_day) = self.pick_date_from_days(days)
@@ -130,81 +96,57 @@ datetime.date.today().day)
         else:
             return False
 
-                self.rankBowl.sort(key=lambda x:-x.get_increase_rate())
+    def get_IR_from_df(self, df, day):
+        IR =  100*(df.iloc[day]['close']-df.iloc[day]['open'])/df.iloc[day]['open']
+        return IR
 
-    def find_and_pop_unit(self, stockId):
-        weightIncrease = 0.0
-        for i in self.rankBowl:
-            if stockId == i.get_stockId():
-                weightIncrease += i.get_increase_rate()/(self.whichUnit+1)
-                break
-        for i in self.rankBowl:
-            self.rankBowl = filter(lambda x:x.get_stockId() != stockId, self.rankBowl)
-            self.rankBowl = list(self.rankBowl)
-        return weightIncrease
-##################
-
-class toprank_strategy(strategy.base_strategy):
-    def __init__(self):
-        strategy.base_strategy.__init__(self)
-        self.name = "toprank"
-        self.unitDays = 0
-        self.rankUnits = 0
-    def add_toprank_increase(self, stockId):
-        (start_day, end_day) = self.pick_date_from_days(self.unitDays*self.rankUnits)
+    def add_toprank_IR(self, stockId):
+        (start_day, end_day) = self.pick_date_from_days(self.rankDays)
         #print("increase: stockId", stockId, "start_day", start_day, "end_day", end_day)
         df = ts.get_h_data(stockId, start=start_day, end=end_day)
         #print("Dataframe: \n", df)
-        for i in range(0, self.rankUnits):
-       	    self.units[i].add_toprank_increase_unit(stockId, df)
+        if df is None:
+            return
+        perl = toprank_perl(stockId, self.d2i)
+        for i in range(0, self.rankDays):
+            if i >= len(df):
+                return
+            IR = self.get_IR_from_df(df, i)
+            perl.set_IR(i, IR)
+        self.rankCrown.append(perl)
 
-    def toprank_loop_stocks(self):
+    def load_recent_stock_info(self):
+        self.load_parameters()
         self.load_stock_ref_pool()
-        #info = super().get_stock_basics()
         for eachStockId in self.stockRef:
             if self.is_break_high(eachStockId, self.breakHighDays):
                 #print("Break_high: ", eachStockId, info.ix[eachStockId])
                 self.breakHighThrone.append(eachStockId)
-            self.add_toprank_increase(eachStockId)
-
-    def load_recent_stock_info(self):
-        self.load_parameters()
-        self.toprank_loop_stocks()
+            self.add_toprank_IR(eachStockId)
         print("\n############# LenofHighThrone:", len(self.breakHighThrone), "breakHighThrone:", self.breakHighThrone)
-        for i in range(0, self.rankUnits):
-            self.units[i].print_toprank_unit()
 
-    def find_and_pop_toprank_unit(self, stockId):
-        weightIncrease = 0.0
-        for i in range(0, self.rankUnits):
-            weightIncrease += self.units[i].find_and_pop_unit(stockId)
-        return weightIncrease
-
-    def merge_toprank_crown(self):
-        for i in range(0, self.rankUnits):
-            while(not self.units[i].is_bowl_empty()):
-                stockId = self.units[i].get_first_stockId()
-                weightIncrease = self.find_and_pop_toprank_unit(stockId)
-                perl = toprank_cell(stockId, weightIncrease)
-                self.rankCrown.append(perl)
+    def rank_stock_by_weight_IR(self):
+        for i in self.rankCrown:
+            i.calc_weight_IR()
+        self.rankCrown.sort(key=lambda x:-x.get_weight_IR())
 
     def eliminate_without_break_high(self):
         for i in self.rankCrown:
             self.rankCrown = filter(lambda x:x.get_stockId() in self.breakHighThrone, self.rankCrown)
+            self.rankCrown = list(self.rankCrown)
+            self.rankCrown = filter(lambda x:x.get_weight_IR() > 0, self.rankCrown)
             self.rankCrown = list(self.rankCrown)
 
     def select_toprank_stocks(self):
         self.add_industry_ref(strategy.industryType.semiconductor)
         self.add_industry_ref(strategy.industryType.software)
         self.add_industry_ref(strategy.industryType.communication)
-        self.add_industry_ref(strategy.industryType.bank)
         self.load_recent_stock_info()
-        self.merge_toprank_crown()
+        self.rank_stock_by_weight_IR()
         self.eliminate_without_break_high()
-        self.rankCrown.sort(key=lambda x:-x.get_increase_rate())
         print("\n$$$$$$$$$$$$$$$ LenofRankCrown:", len(self.rankCrown))
         for i in self.rankCrown:
-            i.print_cell()
+            i.print_perl()
 
     def get_fundamental_all(self, year, quarter):
         super().get_stock_basics(True)
