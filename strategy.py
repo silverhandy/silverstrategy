@@ -16,6 +16,8 @@ class industryType(Enum):
     medicine = 7
     construction = 8
     bank = 9
+    component = 10
+    finance = 11
 
 class fundaType(Enum):
     performance = 1
@@ -60,8 +62,10 @@ class base_strategy():
         return info
 
     def get_industry_from_GBK(self, gbk):
-        if gbk == '半导体': return industryType.semiconductor
-        elif gbk == '通信设备': return industryType.communication
-        elif gbk == '软件服务': return industryType.software
-        elif gbk == '银行': return industryType.bank
+        if gbk == u'半导体': return industryType.semiconductor
+        elif gbk == u'通信设备': return industryType.communication
+        elif gbk == u'软件服务': return industryType.software
+        elif gbk == u'元器件': return industryType.component
+        elif gbk == u'银行': return industryType.bank
+        elif gbk == u'多元金融': return industryType.finance
         else: return industryType.null

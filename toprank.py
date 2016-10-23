@@ -38,13 +38,15 @@ class toprank_perl():
         return self._weightIR
 
     def print_perl(self):
-        print("Stock:", self._stockId, "weightIR:", self._weightIR, "\nIR:", self._IR)
+        print("Stock:", self._stockId, "weightIR:", self._weightIR)
+        #print("IR:", self._IR)
 
 class toprank_strategy(strategy.base_strategy):
     def __init__(self):
         strategy.base_strategy.__init__(self)
         self.name = "toprank"
         self.rankDays = 0
+        self.daysBefore = 0
         self.breakHighDays = 0
         self.pe = 0
         self.d2i = 1
@@ -53,19 +55,20 @@ class toprank_strategy(strategy.base_strategy):
         self.industryRef = []
         self.stockRef = []
 
-    def load_parameters(self):
+    def load_parameters(self, daysBefore):
         with open('toprank.json', 'r') as f:
             data = json.load(f)
         self.rankDays = data["rankDays"]
         self.breakHighDays = data["breakHighDays"]
         self.pe = data["pe"]
         self.d2i = data["d2i"]
+        self.daysBefore = daysBefore
 
     def pick_date_from_days(self, days):
-        end_day = datetime.date(datetime.date.today().year, datetime.date.today().month, \
+        today = datetime.date(datetime.date.today().year, datetime.date.today().month, \
 datetime.date.today().day)
-        days = days*7/5
-        start_day = end_day - datetime.timedelta(days)
+        end_day = today - datetime.timedelta(self.daysBefore)
+        start_day = end_day - datetime.timedelta(days+2)
         start_day = start_day.strftime("%Y-%m-%d")
         end_day = end_day.strftime("%Y-%m-%d")
         return (start_day, end_day)
@@ -81,7 +84,7 @@ datetime.date.today().day)
                 if self.pe != 0 and row.pe > self.pe:
                     continue
                 self.stockRef.append(index)
-        print("stock_ref_pool: Len", len(self.stockRef), "Stocks:", self.stockRef)
+        #print("stock_ref_pool: Len", len(self.stockRef), "Stocks:", self.stockRef)
 
     def is_break_high(self, stockId, days):
         (start_day, end_day) = self.pick_date_from_days(days)
@@ -116,14 +119,13 @@ datetime.date.today().day)
         self.rankCrown.append(perl)
 
     def load_recent_stock_info(self):
-        self.load_parameters()
         self.load_stock_ref_pool()
         for eachStockId in self.stockRef:
             if self.is_break_high(eachStockId, self.breakHighDays):
                 #print("Break_high: ", eachStockId, info.ix[eachStockId])
                 self.breakHighThrone.append(eachStockId)
             self.add_toprank_IR(eachStockId)
-        print("\n############# LenofHighThrone:", len(self.breakHighThrone), "breakHighThrone:", self.breakHighThrone)
+        #print("\n############# LenofHighThrone:", len(self.breakHighThrone), "breakHighThrone:", self.breakHighThrone)
 
     def rank_stock_by_weight_IR(self):
         for i in self.rankCrown:
@@ -139,14 +141,22 @@ datetime.date.today().day)
 
     def select_toprank_stocks(self):
         self.add_industry_ref(strategy.industryType.semiconductor)
-        self.add_industry_ref(strategy.industryType.software)
-        self.add_industry_ref(strategy.industryType.communication)
+        #self.add_industry_ref(strategy.industryType.software)
+        #self.add_industry_ref(strategy.industryType.communication)
+        #self.add_industry_ref(strategy.industryType.finance)
+        #self.add_industry_ref(strategy.industryType.component)
         self.load_recent_stock_info()
         self.rank_stock_by_weight_IR()
         self.eliminate_without_break_high()
-        print("\n$$$$$$$$$$$$$$$ LenofRankCrown:", len(self.rankCrown))
+        print("\nRankCrown on daysBefore", self.daysBefore, "Len:", len(self.rankCrown))
         for i in self.rankCrown:
             i.print_perl()
+
+    def dummy_run(self):
+        (start_day, end_day) = self.pick_date_from_days(self.rankDays)
+        print("daysBefore:", self.daysBefore, "pick date:", start_day, "-", end_day)
+        #df = ts.get_h_data('000063', start_day, end_day)
+        #print("Dataframe: \n", df)
 
     def get_fundamental_all(self, year, quarter):
         super().get_stock_basics(True)
@@ -158,19 +168,24 @@ datetime.date.today().day)
         super().get_fundamental_info(strategy.fundaType.cashflow, year, quarter, True)
 
 if __name__ == "__main__":
-    opts, args = getopt.getopt(sys.argv[1:], "hsf:")
-    tr = toprank_strategy()
+    opts, args = getopt.getopt(sys.argv[1:], "hs:f:")
     for op, value in opts:
         if op == "-f":
             div = value.find(',')
             year = int(value[0:div])
             quarter = int(value[div+1:])
             print("Parse date year:", year, "quarter:", quarter)
+            tr = toprank_strategy()
             tr.get_fundamental_all(year, quarter)
             sys.exit()
         elif op == "-s":
-            print("Selecting toprank stocks...")
-            tr.select_toprank_stocks()
+            days = int(value)
+            print("Selecting toprank stocks before", days, "days ...")
+            for i in range(0, days+1)[::-1]:
+                tr = toprank_strategy()
+                tr.load_parameters(i)
+                tr.dummy_run()
+                tr.select_toprank_stocks()
             sys.exit()
         elif op == "-h":
             print("python3 topranks.py -s # select toprank stocks")
