@@ -188,7 +188,7 @@ if __name__ == "__main__":
                 tr.select_toprank_stocks()
             sys.exit()
         elif op == "-h":
-            print("python3 topranks.py -s # select toprank stocks")
+            print("python3 topranks.py -s 5 # select toprank stocks")
             print("python3 topranks.py -f 2015,4 # get fundamental info")
             print("version of tushare: %s"% ts.__version__)
             print("version of pandas: %s"% pd.__version__)
