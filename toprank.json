@@ -1,6 +1,6 @@
 {
     "rankDays": 		3,
-    "breakHighDays":	30,
+    "breakHighDays":	60,
     "pe":               200,
     "d2i":              2
 }
